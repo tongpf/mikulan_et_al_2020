@@ -250,26 +250,32 @@ def load_bids(dir_bids, subj_id, task, run_id):
         coordsys = json.load(json_file)
 
     fiducials = coordsys['AnatomicalLandmarkCoordinates']
+    #print(fname_eeg)
 
-    data = np.load(fname_eeg)
+    data = np.load(fname_eeg) #头皮脑电数据
     chans = pd.read_csv(fname_chans, sep='\t')
     ch_names = chans.name.tolist()
 
-    elecs = pd.read_csv(fname_elecs, sep='\t')
+    elecs = pd.read_csv(fname_elecs, sep='\t') #电极三维坐标
     dig_ch_pos = dict(zip(ch_names, elecs[['x', 'y', 'z']].values))
 
+    #NAS：鼻根点
+    #RPA：右耳点
+    #LPA：左耳点
     mont = mne.channels.make_dig_montage(dig_ch_pos, nasion=fiducials['NAS'],
                                          rpa=fiducials['RPA'], lpa=fiducials['LPA'],
-                                         coord_frame='head')
+                                         coord_frame='head') #利用电极坐标和头皮坐标系建立电极的位置关系
 
     info = mne.create_info(ch_names, sfreq=8000,  # todo: srate from bids file
-                           ch_types=['eeg']*len(chans))
+                           ch_types=['eeg']*len(chans)) #电极名和采样率
+    #将数据整理为mne的epochs格式
     epo = mne.EpochsArray(data, info, tmin=-0.25)  # todo: tmin from bids file
     epo.set_montage(mont)
 
     ch_status = chans.status.tolist()
     bads = [c for c, s in zip(ch_names, ch_status) if s == 'bad']
-    epo.info['bads'] = bads
+    epo.info['bads'] = bads  #定义坏电极属性
+    #设置baseline correction时段。注意这里不存在-0.3~-0.25s的数据
     epo.baseline = (-0.3, -0.05)  # todo: baseline from bids file
     return epo
 
